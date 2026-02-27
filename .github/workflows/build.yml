@@ -25,7 +25,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --windowed --name "LinearStage" tmcm_Linear_stage_V1.py
+          pyinstaller --onefile --windowed --name "LinearStage" --target-arch universal2 tmcm_Linear_stage_V1.py
 
       - name: Upload Windows exe
         uses: actions/upload-artifact@v4
