@@ -1,0 +1,4 @@
+([('LinearStage',
+   '/Users/boundlessscience/Documents/GitHub/Linear '
+   'Stage/Linear-_stage/dist/LinearStage',
+   'EXECUTABLE')],)

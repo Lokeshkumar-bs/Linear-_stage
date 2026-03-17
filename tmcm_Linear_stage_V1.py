@@ -13,8 +13,8 @@ ACCEL         = 500    # Acceleration (hardcoded)
 UNITS_PER_CMS = 396.9  # calibrated: 446.5 * (10/11.25)
 MAX_VEL_UNITS = 2047
 HOME_THRESHOLD = 50    # GAP 1 counts — stop return when position <= this (~0.015 cm)
-JOG_COARSE_UNITS = 500
-JOG_FINE_UNITS   = 50
+JOG_COARSE_UNITS = 500 # 67.5 cm/min
+JOG_FINE_UNITS   = 50 # 6.7 cm/min
 
 def cmm_to_units(cm_min):
     """cm/min → TMC429 velocity units (0-2047)"""
