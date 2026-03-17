@@ -157,7 +157,7 @@ QTextEdit {
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Linear Stage")
+        self.setWindowTitle("TMCM-1160  Linear Stage")
         self.setMinimumSize(520, 640)
         self.setStyleSheet(STYLE)
         self.tmcl     = None
@@ -211,13 +211,13 @@ class App(QMainWindow):
         v.addWidget(cbox)
 
         # ── Manual control + Set Home ─────────────────────────────
-        jbox = QGroupBox("Hold to set HOME, click SET HOME when ready")
+        jbox = QGroupBox("MANUAL CONTROL  —  hold to jog, click SET HOME when ready")
         jbox.setStyleSheet("QGroupBox { color: #000000; } QGroupBox::title { color: #000000; }")
         jl = QHBoxLayout(jbox); jl.setSpacing(12)
 
         self.jog_r_btn    = QPushButton("▲  HOME")
         self.jog_l_btn    = QPushButton("▼  END")
-        self.set_home_btn = QPushButton("SET HOME")
+        self.set_home_btn = QPushButton("📍  SET HOME")
 
         self.jog_r_btn.setObjectName("jog")
         self.jog_l_btn.setObjectName("jog")
@@ -243,7 +243,7 @@ class App(QMainWindow):
         v.addWidget(self.home_lbl)
 
         # ── Parameters ────────────────────────────────────────────
-        pbox = QGroupBox("Set parameters and click START")
+        pbox = QGroupBox("AUTOMATED CONTROL — Set parameters and click START")
         pg = QGridLayout(pbox)
         pg.setVerticalSpacing(7)
         pg.setHorizontalSpacing(12)
@@ -255,14 +255,14 @@ class App(QMainWindow):
         self.speed_e  = self._inp("120",  QDoubleValidator(0.1, 999.0, 1))
         self.rspeed_e = self._inp("120",  QDoubleValidator(0.1, 999.0, 1))
         self.hold_e   = self._inp("3.0",  QDoubleValidator(0.0, 999.0, 1))
-        self.loops_e  = self._inp("0",    QIntValidator(1, 9999))
+        self.loops_e  = self._inp("0",    QIntValidator(0, 9999))
 
         params = [
             ("DISTANCE",      self.dist_e,   "cm from home"),
             ("FORWARD SPEED", self.speed_e,  "cm/min  (home → target)"),
             ("RETURN SPEED",  self.rspeed_e, "cm/min  (target → home)"),
             ("HOLD TIME",     self.hold_e,   "seconds at target"),
-            ("LOOPS",         self.loops_e,  "1 – 9999"),
+            ("LOOPS",         self.loops_e,  "0 = infinite"),
         ]
 
         for i, (name, widget, hint) in enumerate(params):
@@ -307,8 +307,6 @@ class App(QMainWindow):
         self.log_box.setMaximumHeight(140)
         ll.addWidget(self.log_box)
         v.addWidget(lbox)
-
-        self._clear_fields()
 
     def _inp(self, default, validator=None):
         e = QLineEdit(str(default))
@@ -387,7 +385,6 @@ class App(QMainWindow):
         self.home_lbl.setText("⚠  No home set — jog to position and click SET HOME")
         self.home_lbl.setStyleSheet("color: #bb0000; padding: 2px 0;")
         self._log("Disconnected")
-        self._clear_fields()
 
     # ── Set Home ──────────────────────────────────────────────────
     def _set_home(self):
@@ -443,6 +440,15 @@ class App(QMainWindow):
         self.tmcl.sap(5,   ACCEL)
         self.tmcl.sap(154, PULSE_DIV)
 
+    def _get_mode(self):
+        """Returns 'fwd', 'rtn', 'both', or None if neither speed is filled."""
+        has_fwd = self.speed_e.text().strip() != ""
+        has_rtn = self.rspeed_e.text().strip() != ""
+        if has_fwd and has_rtn:  return 'both'
+        if has_fwd:              return 'fwd'
+        if has_rtn:              return 'rtn'
+        return None
+
     def _start(self):
         if not self.tmcl:
             self._log("Not connected"); return
@@ -450,21 +456,34 @@ class App(QMainWindow):
         if not self.home_set:
             self._log("⚠  Home not set — jog to desired position and click SET HOME first")
             return
+        mode = self._get_mode()
+        if mode is None:
+            self._log("⚠  Enter at least one speed (Forward or Return) to start")
+            return
+        dist = self._val(self.dist_e, 0.0)
+        if dist <= 0:
+            self._log("⚠  Enter a valid distance greater than 0")
+            return
         self._apply()
         self.running = True
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         self._set_jog(False)
-        self.cycle_lbl.setText("Cycles completed:  0")
-        loops = self._val(self.loops_e, 0)
-        dist  = self._val(self.dist_e,  10.0)
-        spd   = self._val(self.speed_e, 120.0)
-        rspd  = self._val(self.rspeed_e, 120.0)
-        hold  = self._val(self.hold_e,  3.0)
-        t_sec = travel_time(dist, spd)
-        self._log(f"Starting  |  dist={dist}cm  fwd={spd}cm/min  rtn={rspd}cm/min  "
-                  f"travel={t_sec:.1f}s  hold={hold}s  loops={loops}")
-        threading.Thread(target=self._run, args=(loops,), daemon=True).start()
+        self.cycle_lbl.setText("Cycles completed:  —")
+        if mode == 'fwd':
+            spd = self._val(self.speed_e, 120.0)
+            self._log(f"Mode: FORWARD ONLY  |  dist={dist}cm  fwd={spd}cm/min")
+        elif mode == 'rtn':
+            rspd = self._val(self.rspeed_e, 120.0)
+            self._log(f"Mode: RETURN ONLY  |  dist={dist}cm  rtn={rspd}cm/min")
+        else:
+            spd  = self._val(self.speed_e, 120.0)
+            rspd = self._val(self.rspeed_e, 120.0)
+            hold = self._val(self.hold_e, 3.0)
+            loops = self._val(self.loops_e, 1)
+            self._log(f"Mode: FULL CYCLE  |  dist={dist}cm  fwd={spd}cm/min  "
+                      f"rtn={rspd}cm/min  hold={hold}s  loops={loops}")
+        threading.Thread(target=self._run, args=(mode,), daemon=True).start()
 
     def _stop(self):
         self.running  = False
@@ -480,79 +499,104 @@ class App(QMainWindow):
         self.home_lbl.setStyleSheet("color: #bb0000; padding: 2px 0;")
         self._log("Stopped — set home position again before next run")
 
-    def _clear_fields(self):
-      self.dist_e.setText("")
-      self.speed_e.setText("")
-      self.rspeed_e.setText("")
-      self.hold_e.setText("")
-      self.loops_e.setText("")
-
     # ── Run loop ──────────────────────────────────────────────────
-    def _run(self, loops):
-        t   = self.tmcl
-        inf = (loops == 0)
+    def _run(self, mode):
+        t = self.tmcl
+        self.sig.log.emit("At home position — beginning")
 
-        # Stage is already at home (user set it) — no homing move needed
-        self.sig.log.emit("At home position — beginning cycle")
+        try:
+            dist = self._val(self.dist_e, 10.0)
 
-        count = 0
-        while self.running and t:
-            try:
-                dist  = self._val(self.dist_e,   10.0)
-                spd   = self._val(self.speed_e,  120.0)
-                rspd  = self._val(self.rspeed_e, 120.0)
-                hold  = self._val(self.hold_e,    3.0)
+            # ── FORWARD ONLY ──────────────────────────────────────
+            if mode == 'fwd':
+                spd   = self._val(self.speed_e, 120.0)
                 t_sec = travel_time(dist, spd)
-
-                # ── Move to target (forward) ───────────────────────
-                self.sig.log.emit(f"Moving to target  {dist}cm at {spd}cm/min ...")
+                self.sig.log.emit(f"Moving forward {dist}cm at {spd}cm/min ...")
                 t.ror(cmm_to_units(spd))
                 t_start = time.time()
                 while self.running and (time.time() - t_start) < t_sec:
-                    if t.stop_r() == 0:           # safety only
+                    if t.stop_r() == 0:
                         t.mst()
                         self.sig.log.emit("⚠ STOP_R safety hit — stopping")
-                        self.sig.done.emit()
-                        return
+                        self.sig.done.emit(); return
+                    time.sleep(0.02)
+                t.mst()
+                self.sig.log.emit(f"Reached {dist}cm — done")
+                self.sig.done.emit()
+                return
+
+            # ── RETURN ONLY ───────────────────────────────────────
+            if mode == 'rtn':
+                rspd  = self._val(self.rspeed_e, 120.0)
+                t_sec = travel_time(dist, rspd)
+                self.sig.log.emit(f"Moving backward {dist}cm at {rspd}cm/min ...")
+                t.rol(cmm_to_units(rspd))
+                t_start = time.time()
+                while self.running and (time.time() - t_start) < t_sec:
+                    if t.stop_l() == 0:
+                        t.mst()
+                        self.sig.log.emit("⚠ STOP_L safety hit — stopping")
+                        self.sig.done.emit(); return
+                    time.sleep(0.02)
+                t.mst()
+                self.sig.log.emit(f"Reached {dist}cm backward — done")
+                self.sig.done.emit()
+                return
+
+            # ── FULL CYCLE (both speeds) ──────────────────────────
+            spd   = self._val(self.speed_e,  120.0)
+            rspd  = self._val(self.rspeed_e, 120.0)
+            hold  = self._val(self.hold_e,    3.0)
+            loops = self._val(self.loops_e,   1)
+            t_fwd = travel_time(dist, spd)
+
+            count = 0
+            while self.running and t:
+                # ── Move forward ──────────────────────────────
+                self.sig.log.emit(f"Moving to target {dist}cm at {spd}cm/min ...")
+                t.ror(cmm_to_units(spd))
+                t_start = time.time()
+                while self.running and (time.time() - t_start) < t_fwd:
+                    if t.stop_r() == 0:
+                        t.mst()
+                        self.sig.log.emit("⚠ STOP_R safety hit — stopping")
+                        self.sig.done.emit(); return
                     time.sleep(0.02)
                 t.mst()
                 if not self.running: break
 
-                # ── Hold at target ────────────────────────────────
+                # ── Hold ──────────────────────────────────────
                 self.sig.log.emit(f"At target {dist}cm — holding {hold}s")
                 t_hold = time.time()
                 while self.running and (time.time() - t_hold) < hold:
                     time.sleep(0.05)
                 if not self.running: break
 
-                # ── Return to home (position-based) ───────────────
+                # ── Return to home (position-based) ───────────
                 self.sig.log.emit(f"Returning to home at {rspd}cm/min ...")
                 t.rol(cmm_to_units(rspd))
                 while self.running:
-                    if t.stop_l() == 0:           # safety only
+                    if t.stop_l() == 0:
                         t.mst()
                         self.sig.log.emit("⚠ STOP_L safety hit on return — stopping")
-                        self.sig.done.emit()
-                        return
+                        self.sig.done.emit(); return
                     pos = t.get_pos()
                     if pos is not None and pos <= HOME_THRESHOLD:
                         t.mst()
-                        t.zero_pos()              # re-zero precisely at home
+                        t.zero_pos()
                         break
                     time.sleep(0.02)
                 if not self.running: break
 
-                # ── Cycle complete ────────────────────────────────
+                # ── Cycle complete ─────────────────────────────
                 count += 1
                 self.sig.cycles.emit(count)
                 self.sig.log.emit(f"Cycle {count} complete — back at home")
-
                 if count >= loops:
-                    self.sig.done.emit()
-                    return
+                    self.sig.done.emit(); return
 
-            except Exception as e:
-                self.sig.log.emit(f"Error: {e}"); break
+        except Exception as e:
+            self.sig.log.emit(f"Error: {e}")
 
     def closeEvent(self, e):
         self._disconnect(); e.accept()
