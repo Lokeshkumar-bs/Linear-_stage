@@ -13,6 +13,8 @@ ACCEL         = 500    # Acceleration (hardcoded)
 UNITS_PER_CMS = 396.9  # calibrated: 446.5 * (10/11.25)
 MAX_VEL_UNITS = 2047
 HOME_THRESHOLD = 50    # GAP 1 counts — stop return when position <= this (~0.015 cm)
+JOG_COARSE_UNITS = 500
+JOG_FINE_UNITS   = 50
 
 def cmm_to_units(cm_min):
     """cm/min → TMC429 velocity units (0-2047)"""
@@ -120,14 +122,21 @@ QPushButton#stop:disabled { color: #cccccc; border-color: #cccccc; }
 QPushButton#sm   { padding: 5px 10px; font-size: 11px; min-width: 50px; }
 QPushButton#dis  { color: #bb0000; border-color: #bb0000; padding: 5px 10px; font-size: 11px; min-width: 90px; }
 QPushButton#dis:hover { background: #fff0f0; }
-QPushButton#jog  { padding: 10px 16px; font-size: 13px; font-weight: bold;
-                   min-width: 140px; min-height: 44px; }
-QPushButton#home { background: #005533; color: #ffffff; border: 2px solid #005533;
+QPushButton#jog  { padding: 8px; font-size: 18px; font-weight: bold;
+                   min-width: 50px; max-width: 50px; min-height: 50px; max-height: 50px;
+                   border-radius: 6px; }
+QPushButton#Sethome { background: #005533; color: #ffffff; border: 2px solid #005533;
                    padding: 10px 16px; font-size: 13px; font-weight: bold;
                    min-width: 140px; min-height: 44px; border-radius: 5px; }
-QPushButton#home:hover    { background: #006644; }
-QPushButton#home:pressed  { background: #004422; }
-QPushButton#home:disabled { background: #cccccc; border-color: #cccccc; color: #ffffff; }
+QPushButton#Sethome:hover    { background: #006644; }
+QPushButton#Sethome:pressed  { background: #004422; }
+QPushButton#Sethome:disabled { background: #cccccc; border-color: #cccccc; color: #ffffff; }
+QPushButton#fine { padding: 8px; font-size: 18px; font-weight: bold;
+                   min-width: 50px; max-width: 50px; min-height: 50px; max-height: 50px;
+                   border-radius: 6px; color: #004488; border: 2px solid #004488; }
+QPushButton#fine:hover    { background: #e6eef8; }
+QPushButton#fine:pressed  { background: #ccddf0; }
+QPushButton#fine:disabled { color: #cccccc; border-color: #cccccc; background: #f8f8f8; }
 QLineEdit {
     background: #ffffff;
     color: #111111;
@@ -213,24 +222,49 @@ class App(QMainWindow):
         # ── Manual control + Set Home ─────────────────────────────
         jbox = QGroupBox("MANUAL CONTROL  —  hold to jog, click SET HOME when ready")
         jbox.setStyleSheet("QGroupBox { color: #000000; } QGroupBox::title { color: #000000; }")
-        jl = QHBoxLayout(jbox); jl.setSpacing(12)
+        jl = QHBoxLayout(jbox); jl.setSpacing(20)
 
-        self.jog_r_btn    = QPushButton("▲  HOME")
-        self.jog_l_btn    = QPushButton("▼  END")
-        self.set_home_btn = QPushButton("📍  SET HOME")
-
+        coarse_lbl = QLabel("COARSE")
+        coarse_lbl.setFont(QFont("Arial", 11, QFont.Bold))
+        coarse_lbl.setStyleSheet("color: #555555;")
+        self.jog_r_btn = QPushButton("▲")
+        self.jog_l_btn = QPushButton("▼")
         self.jog_r_btn.setObjectName("jog")
         self.jog_l_btn.setObjectName("jog")
-        self.set_home_btn.setObjectName("home")
-
-        self.jog_l_btn.pressed.connect(self._jog_left_start)
-        self.jog_l_btn.released.connect(self._jog_stop)
         self.jog_r_btn.pressed.connect(self._jog_right_start)
         self.jog_r_btn.released.connect(self._jog_stop)
+        self.jog_l_btn.pressed.connect(self._jog_left_start)
+        self.jog_l_btn.released.connect(self._jog_stop)
+
+        fine_lbl = QLabel("FINE")
+        fine_lbl.setFont(QFont("Arial", 11, QFont.Bold))
+        fine_lbl.setStyleSheet("color: #004488;")
+        self.fine_r_btn = QPushButton("▲")
+        self.fine_l_btn = QPushButton("▼")
+        self.fine_r_btn.setObjectName("fine")
+        self.fine_l_btn.setObjectName("fine")
+        self.fine_r_btn.pressed.connect(self._fine_right_start)
+        self.fine_r_btn.released.connect(self._jog_stop)
+        self.fine_l_btn.pressed.connect(self._fine_left_start)
+        self.fine_l_btn.released.connect(self._jog_stop)
+
+        self.set_home_btn = QPushButton("📍  SET HOME")
+        self.set_home_btn.setObjectName("Sethome")
         self.set_home_btn.clicked.connect(self._set_home)
 
-        jl.addWidget(self.jog_r_btn)
-        jl.addWidget(self.jog_l_btn)
+        coarse_col = QVBoxLayout(); coarse_col.setSpacing(4)
+        coarse_col.addWidget(self.jog_r_btn)
+        coarse_col.addWidget(self.jog_l_btn)
+
+        fine_col = QVBoxLayout(); fine_col.setSpacing(4)
+        fine_col.addWidget(self.fine_r_btn)
+        fine_col.addWidget(self.fine_l_btn)
+
+        jl.addWidget(coarse_lbl)
+        jl.addLayout(coarse_col)
+        jl.addWidget(fine_lbl)
+        jl.addLayout(fine_col)
+        jl.addSpacing(20)
         jl.addWidget(self.set_home_btn)
         jl.addStretch()
         v.addWidget(jbox)
@@ -319,6 +353,8 @@ class App(QMainWindow):
     def _set_jog(self, en):
         self.jog_l_btn.setEnabled(en)
         self.jog_r_btn.setEnabled(en)
+        self.fine_l_btn.setEnabled(en)
+        self.fine_r_btn.setEnabled(en)
         self.set_home_btn.setEnabled(en)
 
     # ── Logging ───────────────────────────────────────────────────
@@ -396,15 +432,12 @@ class App(QMainWindow):
         self._log("✓ Home position set — position counter zeroed")
 
     # ── Jog ───────────────────────────────────────────────────────
-    def _jog_units(self):
-        return 500   # fixed jog speed, independent of parameters
-
     def _jog_left_start(self):
         if not self.tmcl or self.running: return
         self.jogging = True
         self.tmcl.sap(6, CURRENT)
         self.tmcl.sap(5, ACCEL)
-        self.tmcl.ror(self._jog_units())
+        self.tmcl.ror(JOG_COARSE_UNITS)
         threading.Thread(target=self._jog_watch, args=('l',), daemon=True).start()
 
     def _jog_right_start(self):
@@ -412,7 +445,23 @@ class App(QMainWindow):
         self.jogging = True
         self.tmcl.sap(6, CURRENT)
         self.tmcl.sap(5, ACCEL)
-        self.tmcl.rol(self._jog_units())
+        self.tmcl.rol(JOG_COARSE_UNITS)
+        threading.Thread(target=self._jog_watch, args=('r',), daemon=True).start()
+
+    def _fine_left_start(self):
+        if not self.tmcl or self.running: return
+        self.jogging = True
+        self.tmcl.sap(6, CURRENT)
+        self.tmcl.sap(5, ACCEL)
+        self.tmcl.ror(JOG_FINE_UNITS)
+        threading.Thread(target=self._jog_watch, args=('l',), daemon=True).start()
+
+    def _fine_right_start(self):
+        if not self.tmcl or self.running: return
+        self.jogging = True
+        self.tmcl.sap(6, CURRENT)
+        self.tmcl.sap(5, ACCEL)
+        self.tmcl.rol(JOG_FINE_UNITS)
         threading.Thread(target=self._jog_watch, args=('r',), daemon=True).start()
 
     def _jog_stop(self):
