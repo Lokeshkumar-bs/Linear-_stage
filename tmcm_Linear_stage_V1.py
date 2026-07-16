@@ -1,7 +1,6 @@
 import sys, time, struct, threading
 import serial, serial.tools.list_ports
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget,
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QLineEdit, QGroupBox, QGridLayout, QTextEdit, QFrame)
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QFont, QTextCursor, QIntValidator, QDoubleValidator
@@ -167,7 +166,7 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("TMCM-1160  Linear Stage")
-        self.setMinimumSize(520, 640)
+        self.setMinimumSize(520, 875)
         self.setStyleSheet(STYLE)
         self.tmcl     = None
         self.running  = False
@@ -226,7 +225,7 @@ class App(QMainWindow):
 
         coarse_lbl = QLabel("COARSE")
         coarse_lbl.setFont(QFont("Arial", 11, QFont.Bold))
-        coarse_lbl.setStyleSheet("color: #555555;")
+        coarse_lbl.setStyleSheet("color: #555555; background: transparent; border: none;")
         self.jog_r_btn = QPushButton("▲")
         self.jog_l_btn = QPushButton("▼")
         self.jog_r_btn.setObjectName("jog")
@@ -238,7 +237,7 @@ class App(QMainWindow):
 
         fine_lbl = QLabel("FINE")
         fine_lbl.setFont(QFont("Arial", 11, QFont.Bold))
-        fine_lbl.setStyleSheet("color: #004488;")
+        fine_lbl.setStyleSheet("color: #004488; background: transparent; border: none;")
         self.fine_r_btn = QPushButton("▲")
         self.fine_l_btn = QPushButton("▼")
         self.fine_r_btn.setObjectName("fine")
@@ -260,8 +259,14 @@ class App(QMainWindow):
         fine_col.addWidget(self.fine_r_btn)
         fine_col.addWidget(self.fine_l_btn)
 
+        vdiv = QFrame(); vdiv.setFrameShape(QFrame.VLine)
+        vdiv.setStyleSheet("color: #cccccc;")
+
         jl.addWidget(coarse_lbl)
         jl.addLayout(coarse_col)
+        jl.addSpacing(10)
+        jl.addWidget(vdiv)
+        jl.addSpacing(10)
         jl.addWidget(fine_lbl)
         jl.addLayout(fine_col)
         jl.addSpacing(20)
